@@ -35,9 +35,9 @@ jobs:
               echo "-------------------------------------build docker----------------------------"
               echo $IMAGE_NAME
               docker images
-              docker login -u="$DOCKERHUB_USERNAME" -p="$DOCKERHUB_PASSWORD"
-              docker tag $IMAGE_NAME $DOCKERHUB_USERNAME/$IMAGE_NAME
-              docker push $DOCKERHUB_USERNAME/$IMAGE_NAME
+              docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+              docker tag $IMAGE_NAME $DOCKER_USERNAME/$IMAGE_NAME
+              docker push $DOCKER_USERNAME/$IMAGE_NAME
 
     create-eks-cluster:
       docker:
