@@ -3,6 +3,43 @@ version: 2.1
 orbs:
   kubernetes: circleci/kubernetes@0.11.1
 
+commands:
+  install_awscli:
+    steps:
+      - run:
+          command: |
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+  
+  install_eks:
+    steps:
+      - run:
+          command: |
+            echo "-------------------------------------install EKS ----------------------------"
+            apk add --update tar gzip  curl
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+            mv /tmp/eksctl /usr/local/bin
+            eksctl create cluster --name=EKSCluster-${CIRCLE_WORKFLOW_ID:0:7}
+  
+  install_kubectl:
+    steps:
+      - run:
+          command: |
+            echo "install-kubectl"
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            kubectl version --client
+            
+  deploy_cluster:
+    steps:
+      - run:
+          command: |
+            echo "deploy cluster"
+            aws eks update-kubeconfig --name EKSCluster-${CIRCLE_WORKFLOW_ID:0:7}
+            docker pull $DOCKERHUB_USERNAME/$IMAGE_NAME
+            echo "pull docker update config"
+
 jobs:
     check-code:
       docker:
@@ -21,7 +58,7 @@ jobs:
 
     push-docker:
       docker:
-        - image:  circleci/golang:1.15
+        - image:  circleci/node:13.8.0
       working_directory: ~/repo
       steps:
         - checkout
@@ -45,45 +82,27 @@ jobs:
       working_directory: ~/repo
       steps:
         - checkout
-        - run:
-            name: install EKS and create EKS cluster
-            command: |
-              echo "-------------------------------------install EKS ----------------------------"
-              apk add --update tar gzip  curl
-              curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-              mv /tmp/eksctl /usr/local/bin
-              eksctl create cluster --name=EKSCluster-${CIRCLE_WORKFLOW_ID:0:7}
+        - install_eks      
     
     deploy-eks-cluster:
       docker: 
-        - image: circleci/python:2.7.14
+        - image: python:3.7-alpine3.11
           user: root
       working_directory: ~/repo
       steps:
         - checkout
+        - install_awscli
+        - install_kubectl
+        - deploy_cluster 
         - setup_remote_docker:
             docker_layer_caching: true
         - run:
             name: install kubectl tool and deploy the cluster
             command: |
-              echo start install aws-cli
-              sudo apt -y install tar gzip unzip curl
-              sudo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              sudo unzip awscliv2.zip
-              sudo ./aws/install
-              echo "install-awscli"
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-              sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-              kubectl version --client
-              echo "install-kubectl"
-              # deploy cluster
-              aws eks update-kubeconfig --name EKSCluster-${CIRCLE_WORKFLOW_ID:0:7}
-              docker pull $DOCKERHUB_USERNAME/$IMAGE_NAME
-              echo "pull docker update config"
               # kubectl port-forward 8080:80
               kubectl create namespace eks-deployment-udacity-capstone
-              kubectl apply -f eks-deployment.yaml
-              kubectl apply -f eks-service.yaml
+              kubectl apply -f eks/eks-deployment.yaml
+              kubectl apply -f eks/eks-service.yaml
               echo "deploy eks to-cluster"
               kubectl get all -n eks-deployment-udacity-capstone
               kubectl -n eks-deployment-udacity-capstone describe service eks-deployment-udacity-capstone

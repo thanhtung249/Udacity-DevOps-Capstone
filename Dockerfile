@@ -6,4 +6,6 @@ COPY . /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
 EXPOSE 80
 
+fail lint
+
 CMD ["python", "run.py"]
