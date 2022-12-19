@@ -55,6 +55,8 @@ jobs:
               . venv/bin/activate
               make install
               make lint
+              hadolint Dockerfile
+
 
     push-docker:
       docker:
